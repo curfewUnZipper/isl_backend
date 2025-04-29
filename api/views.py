@@ -20,10 +20,27 @@ import wordninja
 
 
 @csrf_exempt
+
+# def double_dict(request):
+#     try:
+#         img_data = request.data  # <-- keep it as binary
+#         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S%f')
+#         filename = os.path.join(save_dir, f"{timestamp}.jpg")
+
+#         with open(filename, 'wb') as f:
+#             f.write(img_data)
+
+#         return jsonify({"message": "Frame received"}), 200
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
+
+
+
+
 def double_dict(request):
     if request.method == 'POST':
         try:
-            data = json.loads(request.body)
+            data = request.body
             #enter the changed code here
             load_saved_artifacts()
             # return HttpResponse("loaded")
@@ -35,14 +52,14 @@ def double_dict(request):
     return JsonResponse({'error': 'Only POST method is allowed'}, status=405)
 
 
-def createResultCSV(partOutput):
+def createResultCSV(feedImg):
     headers=[]
 
 #     cap = cv2.VideoCapture(0)
 
-#     mpHands = mp.solutions.hands
-#     hands = mpHands.Hands()
-#     mpDraw = mp.solutions.drawing_utils
+    mpHands = mp.solutions.hands
+    hands = mpHands.Hands()
+    mpDraw = mp.solutions.drawing_utils
     sentenceFile = open("./signLog/"+time.strftime("%Y-%m-%d_%H-%M-%S") + ".txt","a+")
     sentenceFile.seek(0)
 # readSentenceFile = open("./signLog/"+time.strftime("%Y-%m-%d_%H-%M-%S") + ".txt","r")
@@ -60,58 +77,66 @@ def createResultCSV(partOutput):
 #         timerTime = time.time()
 #         output = []
 #         headers=[]
-#         partOutput=[]
+    partOutput=[]
 
         
     
 #         # Run for 03 seconds
 #         while time.time()<(timerTime+0.5):
 
-#             success, img= cap.read()
-#             img=cv2.flip(img,1)
-#             # cv2.imshow("showing live feed",success)
-#             imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-#             results = hands.process(imgRGB)
-            
-#             halfList1 = []
-#             halfList2 = []
-#             qtrList = []
+            # success, img= cap.read()
+    # Convert bytes into numpy array
+    nparr = np.frombuffer(feedImg, np.uint8)
 
-#             if (results.multi_hand_landmarks):
-                
-#                 # print("next frame") 
+    # Decode into OpenCV image (BGR format)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-#                 #interesting detail:
-#                 # print(results.multi_handedness[1]) #gives left, but its index property = 0
-#                 # print(results.multi_handedness[0]) #gives right, but its index property = 1
+    if img is None:
+        raise ValueError("Image decoding failed!")
+    img=cv2.flip(img,1)
+    # cv2.imshow("showing live feed",success)
+    imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    results = hands.process(imgRGB)
 
-#                 # print(results.multi_handedness)
-#                 for handSide in results.multi_handedness:
-#                     # print(handSide.classification[0].index)
-#                     halfList1.append(handSide.classification[0].index)
+    halfList1 = []
+    halfList2 = []
+    qtrList = []
 
-
-#                 for handLms in results.multi_hand_landmarks:
-#                     # print(handLms.landmark)
-#                     qtrList=[]
-#                     #this area has both hands seperately
-#                     for id,lm in enumerate(handLms.landmark):
-#                         mpDraw.draw_landmarks(img, handLms, mpHands.HAND_CONNECTIONS)
-#                         #print(id,lm) #this gives position (as a fraction of img) for each pt
-#                         height,width,channel = img.shape #finding img parameters to multiply to lm to get coordinate 
-#                         cx,cy = int(lm.x*width), int(lm.y*height)
-#                         qtrList.append([id,cx,cy])
-#                         # if id==4 or id==3:
-#                             # print(id, cx,cy)
-#                             # qtrList.append([id,cx,cy])
+    if (results.multi_hand_landmarks):
         
-#                     halfList2.append(qtrList)
-#                 #this area is after a frame
-#                 # print(halfList1)
-#                 # print(halfList2)
-#                 # print("\n\n\n")
-#                 partOutput.append(dict(zip(halfList1,halfList2)))   
-#                 # print(partOutput)
+        # print("next frame") 
+
+        #interesting detail:
+        # print(results.multi_handedness[1]) #gives left, but its index property = 0
+        # print(results.multi_handedness[0]) #gives right, but its index property = 1
+
+        # print(results.multi_handedness)
+        for handSide in results.multi_handedness:
+            # print(handSide.classification[0].index)
+            halfList1.append(handSide.classification[0].index)
+
+
+        for handLms in results.multi_hand_landmarks:
+            # print(handLms.landmark)
+            qtrList=[]
+            #this area has both hands seperately
+            for id,lm in enumerate(handLms.landmark):
+                mpDraw.draw_landmarks(img, handLms, mpHands.HAND_CONNECTIONS)
+                #print(id,lm) #this gives position (as a fraction of img) for each pt
+                height,width,channel = img.shape #finding img parameters to multiply to lm to get coordinate 
+                cx,cy = int(lm.x*width), int(lm.y*height)
+                qtrList.append([id,cx,cy])
+                # if id==4 or id==3:
+                    # print(id, cx,cy)
+                    # qtrList.append([id,cx,cy])
+
+            halfList2.append(qtrList)
+        #this area is after a frame
+        # print(halfList1)
+        # print(halfList2)
+        # print("\n\n\n")
+        partOutput.append(dict(zip(halfList1,halfList2)))   
+        # print(partOutput)
 
     """
     this is the test phrase (returns A) and this is the accepted format for call:
@@ -124,11 +149,11 @@ def createResultCSV(partOutput):
     
     # partOutput = input("Enter the dict: ")
     
-    import json
-    converted = {int(k): json.loads(v) for k, v in partOutput.items()}
-    partOutput=[converted]
-    output.append(partOutput)
-
+    # import json
+    # converted = {int(k): json.loads(v) for k, v in partOutput.items()}
+    # partOutput=[converted]
+    # output.append(partOutput)
+    # print(partOutput)
 
     # #displayingFP
     # cTime = time.time()
